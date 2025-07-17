@@ -5,6 +5,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { executeGithubWorkflow } from '../../mcp/extensions/github-mcp-tool'; // Import the new GitHub tool
 
 type AvurnaResponse = {
   message: string;
@@ -41,17 +42,22 @@ export default async function handler(
     let responseData: any = {};
 
     // --- Dispatch to your Extensions/Tools Here ---
-    // You'll import and call functions from mcp/extensions/ here
     switch (action) {
       case 'ping':
         responseMessage = 'Avurna, your connection is live and thriving!';
         responseData = { timestamp: new Date().toISOString() };
         break;
-      case 'example_github_action':
-        // Example: Call a function from mcp/extensions/github-mcp-tool.ts
-        // const githubResult = await githubMcpTool.performAction(payload);
-        responseMessage = `Simulated GitHub action for: ${payload.repo}`; // Replace with actual result
-        responseData = { simulated: true, action: 'github', payload };
+      case 'github_workflow': // New action to trigger GitHub workflows
+        if (!payload || !payload.owner || !payload.repo || !payload.workflow) {
+          throw new Error("Missing required payload for github_workflow: owner, repo, and workflow.");
+        }
+        const githubResult = await executeGithubWorkflow({
+          owner: payload.owner,
+          repo: payload.repo,
+          workflow: payload.workflow,
+        });
+        responseMessage = `GitHub workflow completed with status: ${githubResult.status}.`;
+        responseData = githubResult;
         break;
       // Add more cases for other extensions (Canva, Figma, etc.)
       default:
