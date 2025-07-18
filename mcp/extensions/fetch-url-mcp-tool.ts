@@ -1,146 +1,9 @@
-// FILE: mcp/extensions/fetch-url-mcp-tool.ts
 // Generated with 💚 by Avurna AI (2025)
-
-import Exa from "exa-js";
+// FILE: mcp/extensions/fetch-url-mcp-tool.ts
 import { tool } from "ai";
 import { z } from "zod";
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
-
-// Initialize Exa client with your API key from the environment
-const exa = new Exa(process.env.EXA_API_KEY || ""); // Ensure this is your actual API key or managed securely
-
-// --- Vision-based Image Filtering Utility ---
-export async function filterImagesWithVision(
-  images: Array<{ src: string; alt?: string;[key: string]: any }>,
-  userQuery: string,
-  userIntent: { modality?: string } | null = null
-): Promise<{
-  filtered: typeof images;
-  all: typeof images;
-  filteringApplied: boolean;
-  warning?: string;
-}> {
-  const subjectiveWords = [
-    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
-    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
-    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
-    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
-    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
-    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
-    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
-  ];
-  const q = userQuery.toLowerCase();
-  if (subjectiveWords.some(w => q.includes(w))) {
-    return {
-      filtered: images,
-      all: images,
-      filteringApplied: false,
-      warning: 'Vision filtering skipped for subjective queries.'
-    };
-  }
-  const isObjective = (userIntent && userIntent.modality === 'image') || /\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/i.test(userQuery);
-  if (!isObjective) {
-    return {
-      filtered: images,
-      all: images,
-      filteringApplied: false
-    };
-  }
-  const visionModel = google('gemma-3-27b-it');
-  const threshold = 0.85;
-  const results = [];
-  for (const img of images.slice(0, 10)) {
-    try {
-      const prompt = `Does this image clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nImage URL: ${img.src}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
-      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
-      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-      const confidence = Number(parsed.confidence) || 0;
-      if (confidence >= threshold) {
-        results.push({ ...img, description: parsed.description || '', confidence });
-      }
-    } catch (e) {
-    }
-  }
-  results.sort((a, b) => b.confidence - a.confidence);
-  return {
-    filtered: results,
-    all: images,
-    filteringApplied: true
-  };
-}
-
-// --- Vision-based Video Filtering Utility ---
-export async function filterVideosWithVision(
-  videos: Array<{ src: string; poster?: string; title?: string;[key: string]: any }>,
-  userQuery: string,
-  userIntent: { modality?: string } | null = null
-): Promise<{
-  filtered: typeof videos;
-  all: typeof videos;
-  filteringApplied: boolean;
-  warning?: string;
-}> {
-  const subjectiveWords = [
-    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
-    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
-    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
-    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
-    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
-    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
-    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
-  ];
-  const q = userQuery.toLowerCase();
-  if (subjectiveWords.some(w => q.includes(w))) {
-    return {
-      filtered: videos,
-      all: videos,
-      filteringApplied: false,
-      warning: 'Vision filtering skipped for subjective queries.'
-    };
-  }
-  const isObjective = (userIntent && userIntent.modality === 'video') || /\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/i.test(userQuery);
-  if (!isObjective) {
-    return {
-      filtered: videos,
-      all: videos,
-      filteringApplied: false
-    };
-  }
-  const isChannelOrProfileUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      if (u.hostname.includes('youtube.com')) {
-        if (/\/(@|channel\/|user\/|c\/)[^/]+/i.test(u.pathname) && !/\/watch\?v=|\/embed\//.test(u.pathname)) return true;
-      }
-      if (u.hostname.includes('tiktok.com') && /\/(@|user\/)[^/]+/i.test(u.pathname) && !/\/video\//.test(u.pathname)) return true;
-    } catch { }
-    return false;
-  };
-  const visionModel = google('gemma-3-27b-it');
-  const threshold = 0.85;
-  const results = [];
-  for (const vid of videos.slice(0, 10)) {
-    if (isChannelOrProfileUrl(vid.src)) continue;
-    try {
-      const mediaUrl = vid.poster || vid.src;
-      const prompt = `Does this video (or its thumbnail) clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nMedia URL: ${mediaUrl}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
-      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
-      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-      const confidence = Number(parsed.confidence) || 0;
-      if (confidence >= threshold) {
-        results.push({ ...vid, description: parsed.description || '', confidence });
-      }
-    } catch (e) {
-    }
-  }
-  results.sort((a, b) => b.confidence - a.confidence);
-  return {
-    filtered: results,
-    all: videos,
-    filteringApplied: true
-  };
-}
 
 // --- ENHANCED Intent Extraction Utility: Multi-LLM, More Modifiers ---
 async function extractUserIntent(userMessage: string): Promise<{ object: string; modality: string; qualifiers: string[]; expanded: string[] }> {
@@ -233,6 +96,14 @@ async function extractUserIntent(userMessage: string): Promise<{ object: string;
   return finalIntent;
 }
 
+// --- HTML Media Extraction Utilities ---
+function extractImagesFromHtml(html: string, baseUrl: string): { src: string, alt: string, width?: number, height?: number }[] {
+  const imgTagRegex = /<img\s+([^>]*?)>/gi; const srcRegex = /src=["']([^"']+)["']/; const altRegex = /alt=["']([^"']*)["']/; const widthRegex = /width=["']?(\d+)/; const heightRegex = /height=["']?(\d+)/; const images: { src: string, alt: string, width?: number, height?: number }[] = []; const commonUiPatterns = /\/(logo|icon|sprite|spinner|loader|avatar|profile|badge|button|arrow|thumb|pixel|spacer)-?.*\.(\w{3,4})$/i; const commonUiKeywordsInAlt = ['logo', 'icon', 'button', 'arrow', 'avatar', 'profile', 'badge', 'banner ad', 'advertisement']; let match; while ((match = imgTagRegex.exec(html)) !== null) { const imgTagContent = match[1]; const srcMatch = srcRegex.exec(imgTagContent); if (!srcMatch || !srcMatch[1]) continue; let src = srcMatch[1]; const altMatch = altRegex.exec(imgTagContent); let alt = altMatch ? altMatch[1] : ''; try { src = new URL(src, baseUrl).toString(); const widthMatch = widthRegex.exec(imgTagContent); const heightMatch = heightRegex.exec(imgTagContent); const width = widthMatch ? parseInt(widthMatch[1], 10) : undefined; const height = heightMatch ? parseInt(heightMatch[1], 10) : undefined; if (commonUiPatterns.test(src) || commonUiKeywordsInAlt.some(kw => alt.toLowerCase().includes(kw))) continue; if ((width !== undefined && width < 50) && (height !== undefined && height < 50)) continue; images.push({ src, alt, width, height }); } catch { /* Invalid URL */ } } return images;
+}
+async function extractVideosFromHtml(html: string, baseUrl: string): Promise<{ src: string, poster?: string, alt?: string }[]> {
+  const videos: { src: string, poster?: string, alt?: string }[] = []; const videoTagRegex = /<video[^>]*?(?:poster=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/video>/gi; const sourceTagRegex = /<source[^>]+src=["']([^"']+)["'][^>]*?(?:type=["']video\/([^"']+)["'])?/gi; const iframeRegex = /<iframe[^>]+src=["']([^"']+)["'][^>]*><\/iframe>/gi; let match; while ((match = videoTagRegex.exec(html)) !== null) { const poster = match[1]; const videoInnerHtml = match[2]; let sourceMatch; let videoSrc: string | null = null; while ((sourceMatch = sourceTagRegex.exec(videoInnerHtml)) !== null) { if (sourceMatch[1] && (!videoSrc || (sourceMatch[2] && sourceMatch[2].includes('mp4')))) { videoSrc = sourceMatch[1]; if (sourceMatch[2] && sourceMatch[2].includes('mp4')) break; } } if (!videoSrc) { const videoSrcAttrMatch = /src=["']([^"']+)["']/.exec(match[0]); if (videoSrcAttrMatch) videoSrc = videoSrcAttrMatch[1]; } if (videoSrc) { try { const absoluteSrc = new URL(videoSrc, baseUrl).toString(); videos.push({ src: absoluteSrc, poster, alt: poster || "video content" }); } catch { /* Invalid URL */ } } } while ((match = iframeRegex.exec(html)) !== null) { const iframeSrc = match[1]; let absoluteSrc: string; try { absoluteSrc = new URL(iframeSrc, baseUrl).toString(); } catch { continue; } if (/youtube\.(com|nocookie\.com)\/embed\//.test(absoluteSrc)) { videos.push({ src: absoluteSrc, alt: "YouTube video" }); continue; } if (/player\.vimeo\.com\/video\//.test(absoluteSrc)) { videos.push({ src: absoluteSrc, alt: "Vimeo video" }); continue; } videos.push({ src: absoluteSrc, alt: "embedded video player" }); } return videos;
+}
+
 // --- Helper Function for Basic Table Parsing ---
 function parseHtmlTables(html: string): { headers: string[], rows: Record<string, string>[] }[] {
   const tables = [];
@@ -309,33 +180,138 @@ function parseHtmlTables(html: string): { headers: string[], rows: Record<string
   return tables;
 }
 
-// --- HTML Media Extraction Utilities ---
-function extractImagesFromHtml(html: string, baseUrl: string): { src: string, alt: string, width?: number, height?: number }[] {
-  const imgTagRegex = /<img\s+([^>]*?)>/gi; const srcRegex = /src=["']([^"']+)["']/; const altRegex = /alt=["']([^"']*)["']/; const widthRegex = /width=["']?(\d+)/; const heightRegex = /height=["']?(\d+)/; const images: { src: string, alt: string, width?: number, height?: number }[] = []; const commonUiPatterns = /\/(logo|icon|sprite|spinner|loader|avatar|profile|badge|button|arrow|thumb|pixel|spacer)-?.*\.(\w{3,4})$/i; const commonUiKeywordsInAlt = ['logo', 'icon', 'button', 'arrow', 'avatar', 'profile', 'badge', 'banner ad', 'advertisement']; let match; while ((match = imgTagRegex.exec(html)) !== null) { const imgTagContent = match[1]; const srcMatch = srcRegex.exec(imgTagContent); if (!srcMatch || !srcMatch[1]) continue; let src = srcMatch[1]; const altMatch = altRegex.exec(imgTagContent); let alt = altMatch ? altMatch[1] : ''; try { src = new URL(src, baseUrl).toString(); const widthMatch = widthRegex.exec(imgTagContent); const heightMatch = heightRegex.exec(imgTagContent); const width = widthMatch ? parseInt(widthMatch[1], 10) : undefined; const height = heightMatch ? parseInt(heightMatch[1], 10) : undefined; if (commonUiPatterns.test(src) || commonUiKeywordsInAlt.some(kw => alt.toLowerCase().includes(kw))) continue; if ((width !== undefined && width < 50) && (height !== undefined && height < 50)) continue; images.push({ src, alt, width, height }); } catch { /* Invalid URL */ } } return images;
-}
-async function extractVideosFromHtml(html: string, baseUrl: string): Promise<{ src: string, poster?: string, alt?: string }[]> {
-  const videos: { src: string, poster?: string, alt?: string }[] = []; const videoTagRegex = /<video[^>]*?(?:poster=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/video>/gi; const sourceTagRegex = /<source[^>]+src=["']([^"']+)["'][^>]*?(?:type=["']video\/([^"']+)["'])?/gi; const iframeRegex = /<iframe[^>]+src=["']([^"']+)["'][^>]*><\/iframe>/gi; let match; while ((match = videoTagRegex.exec(html)) !== null) { const poster = match[1]; const videoInnerHtml = match[2]; let sourceMatch; let videoSrc: string | null = null; while ((sourceMatch = sourceTagRegex.exec(videoInnerHtml)) !== null) { if (sourceMatch[1] && (!videoSrc || (sourceMatch[2] && sourceMatch[2].includes('mp4')))) { videoSrc = sourceMatch[1]; if (sourceMatch[2] && sourceMatch[2].includes('mp4')) break; } } if (!videoSrc) { const videoSrcAttrMatch = /src=["']([^"']+)["']/.exec(match[0]); if (videoSrcAttrMatch) videoSrc = videoSrcAttrMatch[1]; } if (videoSrc) { try { const absoluteSrc = new URL(videoSrc, baseUrl).toString(); videos.push({ src: absoluteSrc, poster, alt: poster || "video content" }); } catch { /* Invalid URL */ } } } while ((match = iframeRegex.exec(html)) !== null) { const iframeSrc = match[1]; let absoluteSrc: string; try { absoluteSrc = new URL(iframeSrc, baseUrl).toString(); } catch { continue; } if (/youtube\.(com|nocookie\.com)\/embed\//.test(absoluteSrc)) { videos.push({ src: absoluteSrc, alt: "YouTube video" }); continue; } if (/player\.vimeo\.com\/video\//.test(absoluteSrc)) { videos.push({ src: absoluteSrc, alt: "Vimeo video" }); continue; } videos.push({ src: absoluteSrc, alt: "embedded video player" }); } return videos;
+// --- Vision-based Image Filtering Utility ---
+async function filterImagesWithVision(
+  images: Array<{ src: string; alt?: string;[key: string]: any }>,
+  userQuery: string,
+  userIntent: { modality?: string } | null = null
+): Promise<{
+  filtered: typeof images;
+  all: typeof images;
+  filteringApplied: boolean;
+  warning?: string;
+}> {
+  const subjectiveWords = [
+    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
+    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
+    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
+    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
+    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
+    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
+    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
+  ];
+  const q = userQuery.toLowerCase();
+  if (subjectiveWords.some(w => q.includes(w))) {
+    return {
+      filtered: images,
+      all: images,
+      filteringApplied: false,
+      warning: 'Vision filtering skipped for subjective queries.'
+    };
+  }
+  const isObjective = (userIntent && userIntent.modality === 'image') || /\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/i.test(userQuery);
+  if (!isObjective) {
+    return {
+      filtered: images,
+      all: images,
+      filteringApplied: false
+    };
+  }
+  const visionModel = google('gemma-3-27b-it');
+  const threshold = 0.85;
+  const results = [];
+  for (const img of images.slice(0, 10)) {
+    try {
+      const prompt = `Does this image clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nImage URL: ${img.src}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
+      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
+      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
+      const confidence = Number(parsed.confidence) || 0;
+      if (confidence >= threshold) {
+        results.push({ ...img, description: parsed.description || '', confidence });
+      }
+    } catch (e) {
+    }
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  return {
+    filtered: results,
+    all: images,
+    filteringApplied: true
+  };
 }
 
-function extractMainContent(html: string): string { return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
-
-async function getLinkSubject(linkText: string, linkHref: string, userGoal: string): Promise<string> {
-  try { const linkModel = google('gemma-3n-e4b-it'); const prompt = `A user's goal is to "${userGoal}". On a webpage, there is a link with the text "${linkText}" that points to "${linkHref}". What is the primary subject of THIS LINK? Respond with a single noun or short phrase.`; const { text } = await generateText({ model: linkModel, prompt, temperature: 0.1, maxTokens: 20 }); return text.trim().toLowerCase(); } catch (e) { console.warn(`[getLinkSubject] LLM call failed`); return "unknown"; }
+// --- Vision-based Video Filtering Utility ---
+async function filterVideosWithVision(
+  videos: Array<{ src: string; poster?: string; title?: string;[key: string]: any }>,
+  userQuery: string,
+  userIntent: { modality?: string } | null = null
+): Promise<{
+  filtered: typeof videos;
+  all: typeof videos;
+  filteringApplied: boolean;
+  warning?: string;
+}> {
+  const subjectiveWords = [
+    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
+    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
+    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
+    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
+    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
+    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
+    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
+  ];
+  const q = userQuery.toLowerCase();
+  if (subjectiveWords.some(w => q.includes(w))) {
+    return {
+      filtered: videos,
+      all: videos,
+      filteringApplied: false,
+      warning: 'Vision filtering skipped for subjective queries.'
+    };
+  }
+  const isObjective = (userIntent && userIntent.modality === 'video') || /\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/i.test(userQuery);
+  if (!isObjective) {
+    return {
+      filtered: videos,
+      all: videos,
+      filteringApplied: false
+    };
+  }
+  const isChannelOrProfileUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('youtube.com')) {
+        if (/\/(@|channel\/|user\/|c\/)[^/]+/i.test(u.pathname) && !/\/watch\?v=|\/embed\//.test(u.pathname)) return true;
+      }
+      if (u.hostname.includes('tiktok.com') && /\/(@|user\/)[^/]+/i.test(u.pathname) && !/\/video\//.test(u.pathname)) return true;
+    } catch { }
+    return false;
+  };
+  const visionModel = google('gemma-3-27b-it');
+  const threshold = 0.85;
+  const results = [];
+  for (const vid of videos.slice(0, 10)) {
+    if (isChannelOrProfileUrl(vid.src)) continue;
+    try {
+      const mediaUrl = vid.poster || vid.src;
+      const prompt = `Does this video (or its thumbnail) clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nMedia URL: ${mediaUrl}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
+      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
+      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
+      const confidence = Number(parsed.confidence) || 0;
+      if (confidence >= threshold) {
+        results.push({ ...vid, description: parsed.description || '', confidence });
+      }
+    } catch (e) {
+    }
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  return {
+    filtered: results,
+    all: videos,
+    filteringApplied: true
+  };
 }
 
-async function extractAndScoreLinks(htmlContent: string, currentUrl: string, CIntent: any): Promise<{ href: string, text: string, score: number }[]> {
-  const aTagRegex = /<a[^>]+href=["']([^"'#?]+)["'][^>]*>(.*?)<\/a>/gi; const potentialLinks: { href: string; text: string }[] = []; let match; while ((match = aTagRegex.exec(htmlContent)) !== null) { const href = match[1]; const textContent = match[2].replace(/<[^>]+>/g, ' ').trim(); if (!href || href.startsWith('#') || textContent.length < 3) continue; try { const absoluteHref = new URL(href, currentUrl).toString(); if (new URL(absoluteHref).origin === new URL(currentUrl).origin && !new Set<string>().has(absoluteHref)) potentialLinks.push({ href: absoluteHref, text: textContent }); } catch { } } const scoredLinks: { href: string; text: string; score: number }[] = []; const linkAnalysisPromises = potentialLinks.slice(0, 10).map(async link => { if (Date.now() - new Date().getTime() > 45000 - 5000) return; const subject = await getLinkSubject(link.text, link.href, CIntent.object); let score = 0; const intentKeywords = [CIntent.object, ...CIntent.expanded].filter(Boolean).map(k => k.toLowerCase()); if (intentKeywords.some(kw => subject.includes(kw))) score += 10; else if (intentKeywords.some(kw => link.text.toLowerCase().includes(kw))) score += 2; if (score > 3) scoredLinks.push({ ...link, score }); }); await Promise.all(linkAnalysisPromises); scoredLinks.sort((a, b) => b.score - a.score); return scoredLinks.slice(0, 5);
-}
-
-async function describeImageWithVision(src: string, CIntent: any): Promise<{ description: string; confidence: number; isRelevant: boolean; }> {
-  try { const visionModel = google('gemma-3-27b-it'); const prompt = `Analyze image at ${src}. User wants: "${CIntent.object}". JSON: { "description": "15-word description.", "confidence": "0.0-1.0 confidence it matches user intent." }`; const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 }); const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}'); return { description: parsed.description || "No description.", confidence: Number(parsed.confidence) || 0, isRelevant: (Number(parsed.confidence) || 0) > 0.6 }; } catch (e) { return { description: "Vision error", confidence: 0, isRelevant: false }; }
-}
-
-async function describeVideoWithVision(src: string, CIntent: any): Promise<{ description: string; confidence: number; isRelevant: boolean; }> {
-  try { const visionModel = google('gemma-3-27b-it'); const prompt = `Analyze video at ${src}. User wants: "${CIntent.object}". JSON: { "description": "20-word summary.", "confidence": "0.0-1.0 confidence it matches." }`; const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 }); const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}'); return { description: parsed.description || "No summary.", confidence: Number(parsed.confidence) || 0, isRelevant: (Number(parsed.confidence) || 0) > 0.6 }; } catch (e) { return { description: "Vision error", confidence: 0, isRelevant: false }; }
-}
-
-// --- CORRECTED HYBRID FETCHURLTOOL ---
 export const fetchUrlTool = tool({
   description:
     "A hybrid tool that fetches content from a URL using two methods in parallel: a direct, vision-enabled recursive crawler and Exa's high-speed content extractor. It intelligently merges the results to provide the most accurate and comprehensive media, text, or summary.",
@@ -367,8 +343,16 @@ export const fetchUrlTool = tool({
       const exaStartTime = Date.now();
       console.log(`[Exa Fetch] Starting for ${targetUrl} with mode: ${crawlMode}`);
       try {
-        const response = await exa.getContents([targetUrl], { livecrawl: crawlMode });
-        const result = response.results[0];
+        const response = await fetch('https://api.exa.ai/contents', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.EXA_API_KEY || '',
+          },
+          body: JSON.stringify({ urls: [targetUrl], livecrawl: crawlMode }),
+        });
+        const jsonResponse = await response.json();
+        const result = jsonResponse.results[0];
         if (!result || !result.text) throw new Error("Exa returned no content.");
         console.log(`[Exa Fetch] Success. Got ${result.text.length} chars. Took ${Date.now() - exaStartTime}ms.`);
         return { source: 'exa', success: true, textContent: result.text, elapsedMs: Date.now() - exaStartTime };
@@ -386,6 +370,26 @@ export const fetchUrlTool = tool({
       let operationTimedOut = false;
       const baseOrigin = (() => { try { return new URL(url).origin; } catch { return null; } })();
       if (!baseOrigin) return { source: 'direct', success: false, error: "Invalid base URL", elapsedMs: Date.now() - directFetchStartTime };
+
+      async function getLinkSubject(linkText: string, linkHref: string, userGoal: string): Promise<string> {
+        try { const linkModel = google('gemma-3n-e4b-it'); const prompt = `A user's goal is to "${userGoal}". On a webpage, there is a link with the text "${linkText}" that points to "${linkHref}". What is the primary subject of THIS LINK? Respond with a single noun or short phrase.`; const { text } = await generateText({ model: linkModel, prompt, temperature: 0.1, maxTokens: 20 }); return text.trim().toLowerCase(); } catch (e) { console.warn(`[getLinkSubject] LLM call failed`); return "unknown"; }
+      }
+      async function extractAndScoreLinks(htmlContent: string, currentUrl: string, CIntent: any): Promise<{ href: string, text: string, score: number }[]> {
+        const aTagRegex = /<a[^>]+href=["']([^"'#?]+)["'][^>]*>(.*?)<\/a>/gi; const potentialLinks: { href: string; text: string }[] = []; let match; while ((match = aTagRegex.exec(htmlContent)) !== null) { const href = match[1]; const textContent = match[2].replace(/<[^>]+>/g, ' ').trim(); if (!href || href.startsWith('#') || textContent.length < 3) continue; try { const absoluteHref = new URL(href, currentUrl).toString(); if (new URL(absoluteHref).origin === baseOrigin && !visited.has(absoluteHref)) potentialLinks.push({ href: absoluteHref, text: textContent }); } catch { } } const scoredLinks: { href: string; text: string; score: number }[] = []; const linkAnalysisPromises = potentialLinks.slice(0, 10).map(async link => { if (Date.now() - overallStartTime > timeoutMs - 5000) return; const subject = await getLinkSubject(link.text, link.href, CIntent.object); let score = 0; const intentKeywords = [CIntent.object, ...CIntent.expanded].filter(Boolean).map(k => k.toLowerCase()); if (intentKeywords.some(kw => subject.includes(kw))) score += 10; else if (intentKeywords.some(kw => link.text.toLowerCase().includes(kw))) score += 2; if (score > 3) scoredLinks.push({ ...link, score }); }); await Promise.all(linkAnalysisPromises); scoredLinks.sort((a, b) => b.score - a.score); return scoredLinks.slice(0, 5);
+      }
+      function extractMainContent(html: string): string { return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+      async function describeImageWithVision(src: string, CIntent: any): Promise<{ description: string; confidence: number; isRelevant: boolean; }> {
+        try { const visionModel = google('gemma-3-27b-it'); const prompt = `Analyze image at ${src}. User wants: "${CIntent.object}". JSON: { "description": "15-word description.", "confidence": "0.0-1.0 confidence it matches user intent." }`; const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 }); const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}'); return { description: parsed.description || "No description.", confidence: Number(parsed.confidence) || 0, isRelevant: (Number(parsed.confidence) || 0) > 0.6 }; } catch (e) { return { description: "Vision error", confidence: 0, isRelevant: false }; }
+      }
+      async function describeVideoWithVision(src: string, CIntent: any): Promise<{ description: string; confidence: number; isRelevant: boolean; }> {
+        try { const visionModel = google('gemma-3-27b-it'); const prompt = `Analyze video at ${src}. User wants: "${CIntent.object}". JSON: { "description": "20-word summary.", "confidence": "0.0-1.0 confidence it matches." }`; const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 }); const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}'); return { description: parsed.description || "No summary.", confidence: Number(parsed.confidence) || 0, isRelevant: (Number(parsed.confidence) || 0) > 0.6 }; } catch (e) { return { description: "Vision error", confidence: 0, isRelevant: false }; }
+      }
+      async function filterImagesWithVision(imagesFromHtml: { src: string, alt: string }[], CIntent: any) {
+        const results = []; for (const img of imagesFromHtml.slice(0, 10)) { if (Date.now() - overallStartTime > timeoutMs) { operationTimedOut = true; break; } const visionAnalysis = await describeImageWithVision(img.src, CIntent); if (visionAnalysis.isRelevant) results.push({ ...img, ...visionAnalysis }); } results.sort((a, b) => b.confidence - a.confidence); return results;
+      }
+      async function filterVideosWithVision(videosFromHtml: { src: string, poster?: string, alt?: string }[], CIntent: any) {
+        const results = []; for (const vid of videosFromHtml.slice(0, 5)) { if (Date.now() - overallStartTime > timeoutMs) { operationTimedOut = true; break; } const visionAnalysis = await describeVideoWithVision(vid.src, CIntent); if (visionAnalysis.isRelevant) results.push({ ...vid, ...visionAnalysis }); } results.sort((a, b) => b.confidence - a.confidence); return results;
+      }
 
       async function doFetchAndAnalyze({ currentUrl, currentDepth, CIntent }: { currentUrl: string, currentDepth: number, CIntent: any }): Promise<any> {
         if (operationTimedOut || Date.now() - overallStartTime > timeoutMs || pagesFetchedCount >= maxPages || visited.has(currentUrl)) {
@@ -499,36 +503,3 @@ export const fetchUrlTool = tool({
     return mergedResult;
   },
 });
-
-// --- Simple Markdown Bar Chart Generator ---
-function generateMarkdownBarChart(
-  table: { headers: string[]; rows: Record<string, string>[] },
-  column: string,
-  options?: { maxBars?: number; maxWidth?: number }
-): string | null {
-  const maxBars = options?.maxBars ?? 10;
-  const maxWidth = options?.maxWidth ?? 30;
-  if (!table.headers.includes(column)) return null;
-  const values = table.rows.map(row => {
-    let val = row[column];
-    if (!val) return null;
-    val = val.replace(/[$,%]/g, '').replace(/,/g, '');
-    const num = parseFloat(val);
-    return isNaN(num) ? null : num;
-  }).filter(v => v !== null) as number[];
-  if (values.length === 0) return null;
-  const sorted = values.slice().sort((a, b) => b - a).slice(0, maxBars);
-  const max = Math.max(...sorted);
-  if (max === 0) return null;
-  let chart = `\n\n**Bar Chart for '${column}'**\n\n`;
-  sorted.forEach((v, i) => {
-    const bar = '█'.repeat(Math.round((v / max) * maxWidth));
-    chart += `${v.toString()} | ${bar}\n`;
-  });
-  return chart;
-}
-
-// --- Utility: Format a value as inline code ---
-export function formatInlineCode(value: string): string {
-  return `\`${value.replace(/`/g, '\u0060')}\``;
-}
