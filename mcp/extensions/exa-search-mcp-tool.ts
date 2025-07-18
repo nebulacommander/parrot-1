@@ -1,55 +1,143 @@
-// FILE: mcp/extensions/exa-search-mcp-tool.ts
 // Generated with 💚 by Avurna AI (2025)
-
+// FILE: mcp/extensions/exa-search-mcp-tool.ts
 import Exa from "exa-js";
 import { tool } from "ai";
 import { z } from "zod";
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
 
-// Import shared utilities from fetch-url-mcp-tool.ts or a new common-utils file if needed
-// For now, assuming these are either duplicated or will be refactored into a common file later
-// For this step, I'm including the necessary helper functions directly to ensure functionality.
+const exa = new Exa(process.env.EXA_API_KEY || '');
 
-// Initialize Exa client with your API key from the environment
-const exa = new Exa(process.env.EXA_API_KEY || ""); // Ensure this is your actual API key or managed securely
+// --- Vision-based Image Filtering Utility ---
+async function filterImagesWithVision(
+  images: Array<{ src: string; alt?: string;[key: string]: any }>,
+  userQuery: string,
+  userIntent: { modality?: string } | null = null
+): Promise<{
+  filtered: typeof images;
+  all: typeof images;
+  filteringApplied: boolean;
+  warning?: string;
+}> {
+  const subjectiveWords = [
+    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
+    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
+    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
+    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
+    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
+    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
+    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
+  ];
+  const q = userQuery.toLowerCase();
+  if (subjectiveWords.some(w => q.includes(w))) {
+    return {
+      filtered: images,
+      all: images,
+      filteringApplied: false,
+      warning: 'Vision filtering skipped for subjective queries.'
+    };
+  }
+  const isObjective = (userIntent && userIntent.modality === 'image') || /\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/i.test(userQuery);
+  if (!isObjective) {
+    return {
+      filtered: images,
+      all: images,
+      filteringApplied: false
+    };
+  }
+  const visionModel = google('gemma-3-27b-it');
+  const threshold = 0.85;
+  const results = [];
+  for (const img of images.slice(0, 10)) {
+    try {
+      const prompt = `Does this image clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nImage URL: ${img.src}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
+      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
+      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
+      const confidence = Number(parsed.confidence) || 0;
+      if (confidence >= threshold) {
+        results.push({ ...img, description: parsed.description || '', confidence });
+      }
+    } catch (e) {
+    }
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  return {
+    filtered: results,
+    all: images,
+    filteringApplied: true
+  };
+}
 
-// --- Helper: Infer domains to include based on user intent (image, video, etc.) ---
-function inferDomainsFromIntent(query: string): string[] {
-  const q = query.toLowerCase();
-  if (/\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/.test(q)) {
-    return [
-      'unsplash.com',
-      'pinterest.com',
-      'flickr.com',
-      'gettyimages.com',
-      'pexels.com',
-      'stock.adobe.com',
-      'shutterstock.com',
-      '500px.com',
-      'istockphoto.com',
-      'deviantart.com',
-      'wallhaven.cc',
-      'pixabay.com',
-      'freepik.com',
-      'dreamstime.com',
-      'canva.com',
-      'unsplash.com',
-    ];
+// --- Vision-based Video Filtering Utility ---
+async function filterVideosWithVision(
+  videos: Array<{ src: string; poster?: string; title?: string;[key: string]: any }>,
+  userQuery: string,
+  userIntent: { modality?: string } | null = null
+): Promise<{
+  filtered: typeof videos;
+  all: typeof videos;
+  filteringApplied: boolean;
+  warning?: string;
+}> {
+  const subjectiveWords = [
+    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
+    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
+    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
+    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
+    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
+    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
+    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
+  ];
+  const q = userQuery.toLowerCase();
+  if (subjectiveWords.some(w => q.includes(w))) {
+    return {
+      filtered: videos,
+      all: videos,
+      filteringApplied: false,
+      warning: 'Vision filtering skipped for subjective queries.'
+    };
   }
-  if (/\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/.test(q)) {
-    return [
-      'youtube.com',
-      'vimeo.com',
-      'dailymotion.com',
-      'tiktok.com',
-      'metacafe.com',
-      'veoh.com',
-      'bilibili.com',
-      'twitch.tv',
-    ];
+  const isObjective = (userIntent && userIntent.modality === 'video') || /\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/i.test(userQuery);
+  if (!isObjective) {
+    return {
+      filtered: videos,
+      all: videos,
+      filteringApplied: false
+    };
   }
-  return [];
+  const isChannelOrProfileUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('youtube.com')) {
+        if (/\/(@|channel\/|user\/|c\/)[^/]+/i.test(u.pathname) && !/\/watch\?v=|\/embed\//.test(u.pathname)) return true;
+      }
+      if (u.hostname.includes('tiktok.com') && /\/(@|user\/)[^/]+/i.test(u.pathname) && !/\/video\//.test(u.pathname)) return true;
+    } catch { }
+    return false;
+  };
+  const visionModel = google('gemma-3-27b-it');
+  const threshold = 0.85;
+  const results = [];
+  for (const vid of videos.slice(0, 10)) {
+    if (isChannelOrProfileUrl(vid.src)) continue;
+    try {
+      const mediaUrl = vid.poster || vid.src;
+      const prompt = `Does this video (or its thumbnail) clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nMedia URL: ${mediaUrl}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
+      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
+      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
+      const confidence = Number(parsed.confidence) || 0;
+      if (confidence >= threshold) {
+        results.push({ ...vid, description: parsed.description || '', confidence });
+      }
+    } catch (e) {
+    }
+  }
+  results.sort((a, b) => b.confidence - a.confidence);
+  return {
+    filtered: results,
+    all: videos,
+    filteringApplied: true
+  };
 }
 
 // --- ENHANCED Intent Extraction Utility: Multi-LLM, More Modifiers ---
@@ -143,139 +231,44 @@ async function extractUserIntent(userMessage: string): Promise<{ object: string;
   return finalIntent;
 }
 
-// --- Vision-based Image Filtering Utility ---
-export async function filterImagesWithVision(
-  images: Array<{ src: string; alt?: string;[key: string]: any }>,
-  userQuery: string,
-  userIntent: { modality?: string } | null = null
-): Promise<{
-  filtered: typeof images;
-  all: typeof images;
-  filteringApplied: boolean;
-  warning?: string;
-}> {
-  const subjectiveWords = [
-    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
-    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
-    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
-    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
-    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
-    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
-    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
-  ];
-  const q = userQuery.toLowerCase();
-  if (subjectiveWords.some(w => q.includes(w))) {
-    return {
-      filtered: images,
-      all: images,
-      filteringApplied: false,
-      warning: 'Vision filtering skipped for subjective queries.'
-    };
+// --- Helper: Infer domains to include based on user intent (image, video, etc.) ---
+function inferDomainsFromIntent(query: string): string[] {
+  const q = query.toLowerCase();
+  if (/\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/.test(q)) {
+    return [
+      'unsplash.com',
+      'pinterest.com',
+      'flickr.com',
+      'gettyimages.com',
+      'pexels.com',
+      'stock.adobe.com',
+      'shutterstock.com',
+      '500px.com',
+      'istockphoto.com',
+      'deviantart.com',
+      'wallhaven.cc',
+      'pixabay.com',
+      'freepik.com',
+      'dreamstime.com',
+      'canva.com',
+      'unsplash.com',
+    ];
   }
-  const isObjective = (userIntent && userIntent.modality === 'image') || /\b(image|photo|picture|wallpaper|gallery|pic|jpeg|jpg|png|gif|unsplash|pinterest|flickr|stock)\b/i.test(userQuery);
-  if (!isObjective) {
-    return {
-      filtered: images,
-      all: images,
-      filteringApplied: false
-    };
+  if (/\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/.test(q)) {
+    return [
+      'youtube.com',
+      'vimeo.com',
+      'dailymotion.com',
+      'tiktok.com',
+      'metacafe.com',
+      'veoh.com',
+      'bilibili.com',
+      'twitch.tv',
+    ];
   }
-  const visionModel = google('gemma-3-27b-it');
-  const threshold = 0.85;
-  const results = [];
-  for (const img of images.slice(0, 10)) {
-    try {
-      const prompt = `Does this image clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nImage URL: ${img.src}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
-      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
-      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-      const confidence = Number(parsed.confidence) || 0;
-      if (confidence >= threshold) {
-        results.push({ ...img, description: parsed.description || '', confidence });
-      }
-    } catch (e) {
-    }
-  }
-  results.sort((a, b) => b.confidence - a.confidence);
-  return {
-    filtered: results,
-    all: images,
-    filteringApplied: true
-  };
+  return [];
 }
 
-// --- Vision-based Video Filtering Utility ---
-export async function filterVideosWithVision(
-  videos: Array<{ src: string; poster?: string; title?: string;[key: string]: any }>,
-  userQuery: string,
-  userIntent: { modality?: string } | null = null
-): Promise<{
-  filtered: typeof videos;
-  all: typeof videos;
-  filteringApplied: boolean;
-  warning?: string;
-}> {
-  const subjectiveWords = [
-    'sexy', 'beautiful', 'cute', 'hot', 'gorgeous', 'pretty', 'handsome', 'ugly', 'attractive', 'aesthetic',
-    'cool', 'funny', 'weird', 'strange', 'creepy', 'disturbing', 'artistic', 'stylish', 'awesome', 'amazing',
-    'inspiring', 'breathtaking', 'adorable', 'silly', 'hilarious', 'sad', 'happy', 'emotional', 'moody',
-    'romantic', 'dreamy', 'vintage', 'retro', 'futuristic', 'minimalist', 'maximalist', 'abstract', 'surreal',
-    'impressionist', 'expressionist', 'dramatic', 'epic', 'intense', 'provocative', 'suggestive', 'explicit',
-    'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky',
-    'sexy', 'sex', 'sexual', 'provocative', 'suggestive', 'explicit', 'nsfw', 'lewd', 'erotic', 'porn', 'nude', 'naked', 'sensual', 'fetish', 'fetishy', 'fetishistic', 'kinky'
-  ];
-  const q = userQuery.toLowerCase();
-  if (subjectiveWords.some(w => q.includes(w))) {
-    return {
-      filtered: videos,
-      all: videos,
-      filteringApplied: false,
-      warning: 'Vision filtering skipped for subjective queries.'
-    };
-  }
-  const isObjective = (userIntent && userIntent.modality === 'video') || /\b(video|movie|film|clip|trailer|watch|youtube|vimeo|dailymotion)\b/i.test(userQuery);
-  if (!isObjective) {
-    return {
-      filtered: videos,
-      all: videos,
-      filteringApplied: false
-    };
-  }
-  const isChannelOrProfileUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      if (u.hostname.includes('youtube.com')) {
-        if (/\/(@|channel\/|user\/|c\/)[^/]+/i.test(u.pathname) && !/\/watch\?v=|\/embed\//.test(u.pathname)) return true;
-      }
-      if (u.hostname.includes('tiktok.com') && /\/(@|user\/)[^/]+/i.test(u.pathname) && !/\/video\//.test(u.pathname)) return true;
-    } catch { }
-    return false;
-  };
-  const visionModel = google('gemma-3-27b-it');
-  const threshold = 0.85;
-  const results = [];
-  for (const vid of videos.slice(0, 10)) {
-    if (isChannelOrProfileUrl(vid.src)) continue;
-    try {
-      const mediaUrl = vid.poster || vid.src;
-      const prompt = `Does this video (or its thumbnail) clearly show ALL of the following: ${userQuery}? Be strict. Only give high confidence if every element is present and obvious.\nMedia URL: ${mediaUrl}\nRespond as JSON: { \"description\": \"15-word description\", \"confidence\": \"0.0-1.0\" }`;
-      const { text } = await generateText({ model: visionModel, prompt, temperature: 0.2 });
-      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}');
-      const confidence = Number(parsed.confidence) || 0;
-      if (confidence >= threshold) {
-        results.push({ ...vid, description: parsed.description || '', confidence });
-      }
-    } catch (e) {
-    }
-  }
-  results.sort((a, b) => b.confidence - a.confidence);
-  return {
-    filtered: results,
-    all: videos,
-    filteringApplied: true
-  };
-}
-
-// --- The Final, Hybrid Search Tool ---
 export const exaSearchTool = tool({
   description: "Performs a web search using Exa. It can handle a single query for specific media (images, videos) or multiple queries in parallel for general research. Use 'queries' for multiple topics, and 'query' for a single, specific request.",
   parameters: z.object({
