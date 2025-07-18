@@ -1,43 +1,36 @@
 /*
  * Generated with 💚 by Avurna AI (2025)
- * This is your main MCP serverless endpoint for Avurna, now in the App Router.
+ * This is your main MCP serverless endpoint for Avurna.
  * Deploy this with your Next.js app on Vercel.
  */
 
-import { NextResponse } from 'next/server';
 import { executeGithubWorkflow } from '../../../mcp/extensions/github-mcp-tool';
 import { weatherTool } from '../../../mcp/extensions/weather-mcp-tool';
 import { fetchUrlTool } from '../../../mcp/extensions/fetch-url-mcp-tool';
 import { exaSearchTool } from '../../../mcp/extensions/exa-search-mcp-tool';
 
-type AvurnaResponse = {
-  message: string;
-  status: 'success' | 'error';
-  data?: any;
-};
-
-export async function POST(
-  req: Request,
-) {
-  if (req.method !== 'POST') {
-    return NextResponse.json({ message: 'Method Not Allowed', status: 'error' }, { status: 405 });
-  }
+// Using Next.js App Router convention for API routes
+export async function POST(req: Request) {
+  // No longer need NextApiRequest/NextApiResponse types directly
+  // const requestBody = await req.json();
 
   const AVURNA_API_KEY = process.env.AVURNA_API_KEY;
   const providedApiKey = req.headers.get('x-avurna-api-key');
 
   if (!providedApiKey || providedApiKey !== AVURNA_API_KEY) {
-    return NextResponse.json({ message: 'Unauthorized: Invalid API Key', status: 'error' }, { status: 401 });
+    return new Response(JSON.stringify({ message: 'Unauthorized: Invalid API Key', status: 'error' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    const requestBody = await req.json();
-    const { action, payload } = requestBody;
+    const { action, payload } = await req.json();
 
     console.log(`[Avurna MCP] Received action: ${action} with payload:`, payload);
 
     let responseMessage = 'Command processed.';
-    let responseStatus: AvurnaResponse['status'] = 'success';
+    let responseStatus: 'success' | 'error' = 'success';
     let responseData: any = {};
 
     switch (action) {
@@ -87,10 +80,16 @@ export async function POST(
         break;
     }
 
-    return NextResponse.json({ message: responseMessage, status: responseStatus, data: responseData }, { status: 200 });
+    return new Response(JSON.stringify({ message: responseMessage, status: responseStatus, data: responseData }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (error: any) {
     console.error('[Avurna MCP] Error processing command:', error);
-    return NextResponse.json({ message: `Internal Server Error: ${error.message}`, status: 'error' }, { status: 500 });
+    return new Response(JSON.stringify({ message: `Internal Server Error: ${error.message}`, status: 'error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
