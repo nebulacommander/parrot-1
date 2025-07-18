@@ -60,6 +60,23 @@ export default async function handler(
         responseData = githubResult;
         break;
       // Add more cases for other extensions (Canva, Figma, etc.)
+      // You will move weatherTool, fetchUrlTool, exaSearchTool logic here and call them via their own actions
+      // For example:
+      // case 'get_weather_action':
+      //   const weatherResult = await getWeather(payload.location); // Assuming getWeather is moved to mcp/extensions
+      //   responseMessage = `Weather data retrieved.`;
+      //   responseData = weatherResult;
+      //   break;
+      // case 'fetch_url_action':
+      //   const fetchResult = await robustFetchUrlTool(payload.params, payload.userMessage); // Assuming robustFetchUrlTool is moved
+      //   responseMessage = `URL fetch completed.`;
+      //   responseData = fetchResult;
+      //   break;
+      // case 'google_search_action':
+      //   const searchResult = await exaSearchTool.execute(payload.params); // Assuming exaSearchTool is moved
+      //   responseMessage = `Search completed.`;
+      //   responseData = searchResult;
+      //   break;
       default:
         responseMessage = `Unknown action: ${action}. Avurna is confused, but still fabulous.`;
         responseStatus = 'error';
