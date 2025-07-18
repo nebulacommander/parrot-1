@@ -35,11 +35,11 @@ export async function executeGithubWorkflow({
   assignees?: string[];
   pullNumber?: number;
   // New parameters for new actions
-  repoName?: string; // For createRepo, renameRepo
+  repoName?: string; // For createRepo
   description?: string; // For createRepo
   private?: boolean; // For createRepo
   autoInit?: boolean; // For createRepo
-  org?: string; // For createRepo (if creating in an organization)
+  org?: string; // For createRepo (if creating in an organization) or listRepos
   newRepoName?: string; // For renameRepo
   pagesSourceBranch?: string; // For pushToGithubPages
   pagesSourcePath?: string; // For pushToGithubPages
@@ -206,7 +206,9 @@ export async function executeGithubWorkflow({
             repo,
             source: pagesSource,
           });
-          result = { success: true, message: `GitHub Pages enabled for ${owner}/${repo}.`, url: pagesSite.html_url, status: pagesSite.status };
+          // Construct the GitHub Pages URL
+          const githubPagesUrl = `https://${owner}.github.io/${repo}/`;
+          result = { success: true, message: `GitHub Pages enabled for ${owner}/${repo}.`, url: githubPagesUrl, status: pagesSite.status };
           break;
 
         case 'deleteRepo':
