@@ -373,9 +373,10 @@ if (action === 'getSuggestedPrompts') {
         },
         required: ['action', 'payload'],
       },
-      execute: async ({ action, payload }: { action: string, payload: any }) => {
+      execute: async ({ action, payload }: { action: string, payload: any }, { toolCallId, message }: { toolCallId: string, message: UIMessage }) => {
         // This is the actual call to your MCP serverless function
-        const mcpResponse = await callAvurnaMcp(action, payload);
+        // Pass toolCallId and message along in the payload
+        const mcpResponse = await callAvurnaMcp(action, { ...payload, toolCallId, message });
         return mcpResponse.data; // Return the data from the MCP server's response
       },
     },
