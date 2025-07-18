@@ -34,6 +34,16 @@ export async function executeGithubWorkflow({
   baseBranch?: string;
   assignees?: string[];
   pullNumber?: number;
+  // New parameters for new actions
+  repoName?: string; // For createRepo, renameRepo
+  description?: string; // For createRepo
+  private?: boolean; // For createRepo
+  autoInit?: boolean; // For createRepo
+  org?: string; // For createRepo (if creating in an organization)
+  newRepoName?: string; // For renameRepo
+  pagesSourceBranch?: string; // For pushToGithubPages
+  pagesSourcePath?: string; // For pushToGithubPages
+  repoType?: 'all' | 'owner' | 'member'; // For listRepos
 }> }) {
   const stepResults: any[] = [];
   let lastResult: any = null;
@@ -153,6 +163,99 @@ export async function executeGithubWorkflow({
             }
           };
           break;
+
+        // --- NEW ACTIONS START HERE ---
+        case 'createRepo':
+          if (!step.repoName) {
+            throw new Error("The 'createRepo' action requires a 'repoName'.");
+          }
+          let createRepoResult;
+          if (step.org) {
+            const { data: newOrgRepo } = await octokit.rest.repos.createInOrg({
+              org: step.org,
+              name: step.repoName,
+              description: step.description,
+              private: step.private,
+              auto_init: step.autoInit,
+            });
+            createRepoResult = newOrgRepo;
+          } else {
+            const { data: newUserRepo } = await octokit.rest.repos.createForAuthenticatedUser({
+              name: step.repoName,
+              description: step.description,
+              private: step.private,
+              auto_init: step.autoInit,
+            });
+            createRepoResult = newUserRepo;
+          }
+          result = { success: true, message: `Repository '${step.repoName}' created.`, url: createRepoResult.html_url, fullName: createRepoResult.full_name };
+          break;
+
+        case 'pushToGithubPages':
+          // This action assumes the repository already exists and has content.
+          // It enables GitHub Pages for the repository.
+          if (!owner || !repo) {
+            throw new Error("The 'pushToGithubPages' action requires 'owner' and 'repo'.");
+          }
+          const pagesSource = {
+            branch: step.pagesSourceBranch || 'main', // Default to 'main' branch
+            path: step.pagesSourcePath || '/', // Default to root path
+          };
+          const { data: pagesSite } = await octokit.rest.repos.createPagesSite({
+            owner,
+            repo,
+            source: pagesSource,
+          });
+          result = { success: true, message: `GitHub Pages enabled for ${owner}/${repo}.`, url: pagesSite.html_url, status: pagesSite.status };
+          break;
+
+        case 'deleteRepo':
+          if (!owner || !repo) {
+            throw new Error("The 'deleteRepo' action requires 'owner' and 'repo'.");
+          }
+          await octokit.rest.repos.delete({
+            owner,
+            repo,
+          });
+          result = { success: true, message: `Repository '${owner}/${repo}' deleted.` };
+          break;
+
+        case 'listRepos':
+          let listReposResult;
+          if (step.repoType === 'owner' || step.repoType === 'member') {
+            // List for authenticated user, filtered by type
+            const { data: repos } = await octokit.rest.repos.listForAuthenticatedUser({
+              type: step.repoType,
+            });
+            listReposResult = repos;
+          } else if (step.org) {
+            // List for an organization
+            const { data: repos } = await octokit.rest.repos.listForOrg({
+              org: step.org,
+            });
+            listReposResult = repos;
+          } else {
+            // Default to listing all for authenticated user
+            const { data: repos } = await octokit.rest.repos.listForAuthenticatedUser({});
+            listReposResult = repos;
+          }
+          result = { success: true, repositories: listReposResult.map((r: any) => ({ name: r.name, fullName: r.full_name, url: r.html_url, private: r.private })) };
+          break;
+
+        case 'renameRepo':
+          if (!owner || !repo || !step.newRepoName) {
+            throw new Error("The 'renameRepo' action requires 'owner', 'repo' (current name), and 'newRepoName'.");
+          }
+          const { data: renamedRepo } = await octokit.rest.repos.update({
+            owner,
+            repo,
+            name: step.newRepoName,
+          });
+          result = { success: true, message: `Repository renamed to '${step.newRepoName}'.`, url: renamedRepo.html_url, fullName: renamedRepo.full_name };
+          break;
+
+        // --- NEW ACTIONS END HERE ---
+
         default:
           throw new Error(`Unsupported GitHub action: ${step.action}`);
       }
