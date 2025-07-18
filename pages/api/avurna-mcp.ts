@@ -5,7 +5,10 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { executeGithubWorkflow } from '../../mcp/extensions/github-mcp-tool'; // Import the new GitHub tool
+import { executeGithubWorkflow } from '../../mcp/extensions/github-mcp-tool';
+import { weatherTool } from '../../mcp/extensions/weather-mcp-tool';
+import { fetchUrlTool } from '../../mcp/extensions/fetch-url-mcp-tool';
+import { exaSearchTool } from '../../mcp/extensions/exa-search-mcp-tool';
 
 type AvurnaResponse = {
   message: string;
@@ -21,19 +24,15 @@ export default async function handler(
     return res.status(405).json({ message: 'Method Not Allowed', status: 'error' });
   }
 
-  // --- Basic Security Check (Enhance for Production!) ---
-  // In a real scenario, use robust authentication (e.g., JWT, OAuth).
-  // For now, ensure an API key is present.
-  const AVURNA_API_KEY = process.env.AVURNA_API_KEY; // Set this in your Vercel environment variables
+  const AVURNA_API_KEY = process.env.AVURNA_API_KEY;
   const providedApiKey = req.headers['x-avurna-api-key'];
 
   if (!providedApiKey || providedApiKey !== AVURNA_API_KEY) {
     return res.status(401).json({ message: 'Unauthorized: Invalid API Key', status: 'error' });
   }
-  // --- End Security Check ---
 
   try {
-    const { action, payload } = req.body; // Avurna's command structure
+    const { action, payload } = req.body;
 
     console.log(`[Avurna MCP] Received action: ${action} with payload:`, payload);
 
@@ -41,13 +40,12 @@ export default async function handler(
     let responseStatus: AvurnaResponse['status'] = 'success';
     let responseData: any = {};
 
-    // --- Dispatch to your Extensions/Tools Here ---
     switch (action) {
       case 'ping':
         responseMessage = 'Avurna, your connection is live and thriving!';
         responseData = { timestamp: new Date().toISOString() };
         break;
-      case 'github_workflow': // New action to trigger GitHub workflows
+      case 'github_workflow':
         if (!payload || !payload.owner || !payload.repo || !payload.workflow) {
           throw new Error("Missing required payload for github_workflow: owner, repo, and workflow.");
         }
@@ -59,30 +57,35 @@ export default async function handler(
         responseMessage = `GitHub workflow completed with status: ${githubResult.status}.`;
         responseData = githubResult;
         break;
-      // Add more cases for other extensions (Canva, Figma, etc.)
-      // You will move weatherTool, fetchUrlTool, exaSearchTool logic here and call them via their own actions
-      // For example:
-      // case 'get_weather_action':
-      //   const weatherResult = await getWeather(payload.location); // Assuming getWeather is moved to mcp/extensions
-      //   responseMessage = `Weather data retrieved.`;
-      //   responseData = weatherResult;
-      //   break;
-      // case 'fetch_url_action':
-      //   const fetchResult = await robustFetchUrlTool(payload.params, payload.userMessage); // Assuming robustFetchUrlTool is moved
-      //   responseMessage = `URL fetch completed.`;
-      //   responseData = fetchResult;
-      //   break;
-      // case 'google_search_action':
-      //   const searchResult = await exaSearchTool.execute(payload.params); // Assuming exaSearchTool is moved
-      //   responseMessage = `Search completed.`;
-      //   responseData = searchResult;
-      //   break;
+      case 'get_weather_action':
+        if (!payload || !payload.location) {
+          throw new Error("Missing required payload for get_weather_action: location.");
+        }
+        const weatherResult = await weatherTool.execute(payload);
+        responseMessage = `Weather data retrieved.`;
+        responseData = weatherResult;
+        break;
+      case 'fetch_url_action':
+        if (!payload || !payload.url || !payload.userIntent) {
+          throw new Error("Missing required payload for fetch_url_action: url and userIntent.");
+        }
+        const fetchResult = await fetchUrlTool.execute(payload);
+        responseMessage = `URL fetch completed.`;
+        responseData = fetchResult;
+        break;
+      case 'google_search_action':
+        if (!payload || (!payload.query && !payload.queries && !payload.findSimilar)) {
+          throw new Error("Missing required payload for google_search_action: query, queries, or findSimilar.");
+        }
+        const searchResult = await exaSearchTool.execute(payload);
+        responseMessage = `Search completed.`;
+        responseData = searchResult;
+        break;
       default:
         responseMessage = `Unknown action: ${action}. Avurna is confused, but still fabulous.`;
         responseStatus = 'error';
         break;
     }
-    // --- End Dispatch ---
 
     res.status(200).json({ message: responseMessage, status: responseStatus, data: responseData });
 
