@@ -1,6 +1,5 @@
-// FILE: mcp/extensions/weather-mcp-tool.ts
 // Generated with 💚 by Avurna AI (2025)
-
+// FILE: mcp/extensions/weather-mcp-tool.ts
 import { tool } from "ai";
 import { z } from "zod";
 
