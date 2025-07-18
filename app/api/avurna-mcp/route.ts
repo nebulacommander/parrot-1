@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         if (!payload || !payload.location) {
           throw new Error("Missing required payload for get_weather_action: location.");
         }
-        const weatherResult = await weatherTool.execute(payload);
+        const weatherResult = await weatherTool.execute(payload, {}); // Added empty options object
         responseMessage = `Weather data retrieved.`;
         responseData = weatherResult;
         break;
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         if (!payload || !payload.url || !payload.userIntent) {
           throw new Error("Missing required payload for fetch_url_action: url and userIntent.");
         }
-        const fetchResult = await fetchUrlTool.execute(payload);
+        const fetchResult = await fetchUrlTool.execute(payload, {}); // Added empty options object
         responseMessage = `URL fetch completed.`;
         responseData = fetchResult;
         break;
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         if (!payload || (!payload.query && !payload.queries && !payload.findSimilar)) {
           throw new Error("Missing required payload for google_search_action: query, queries, or findSimilar.");
         }
-        const searchResult = await exaSearchTool.execute(payload);
+        const searchResult = await exaSearchTool.execute(payload, {}); // Added empty options object
         responseMessage = `Search completed.`;
         responseData = searchResult;
         break;
