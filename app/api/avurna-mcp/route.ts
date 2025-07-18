@@ -11,9 +11,6 @@ import { exaSearchTool } from '../../../mcp/extensions/exa-search-mcp-tool';
 
 // Using Next.js App Router convention for API routes
 export async function POST(req: Request) {
-  // No longer need NextApiRequest/NextApiResponse types directly
-  // const requestBody = await req.json();
-
   const AVURNA_API_KEY = process.env.AVURNA_API_KEY;
   const providedApiKey = req.headers.get('x-avurna-api-key');
 
@@ -25,13 +22,16 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { action, payload } = await req.json();
+    const { action, payload, toolCallId, message } = await req.json(); // Extract toolCallId and message
 
     console.log(`[Avurna MCP] Received action: ${action} with payload:`, payload);
 
     let responseMessage = 'Command processed.';
     let responseStatus: 'success' | 'error' = 'success';
     let responseData: any = {};
+
+    // Prepare tool options with toolCallId and message
+    const toolOptions = { toolCallId, message };
 
     switch (action) {
       case 'ping':
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         if (!payload || !payload.location) {
           throw new Error("Missing required payload for get_weather_action: location.");
         }
-        const weatherResult = await weatherTool.execute(payload, {}); // Added empty options object
+        const weatherResult = await weatherTool.execute(payload, toolOptions); // Pass toolOptions
         responseMessage = `Weather data retrieved.`;
         responseData = weatherResult;
         break;
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         if (!payload || !payload.url || !payload.userIntent) {
           throw new Error("Missing required payload for fetch_url_action: url and userIntent.");
         }
-        const fetchResult = await fetchUrlTool.execute(payload, {}); // Added empty options object
+        const fetchResult = await fetchUrlTool.execute(payload, toolOptions); // Pass toolOptions
         responseMessage = `URL fetch completed.`;
         responseData = fetchResult;
         break;
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         if (!payload || (!payload.query && !payload.queries && !payload.findSimilar)) {
           throw new Error("Missing required payload for google_search_action: query, queries, or findSimilar.");
         }
-        const searchResult = await exaSearchTool.execute(payload, {}); // Added empty options object
+        const searchResult = await exaSearchTool.execute(payload, toolOptions); // Pass toolOptions
         responseMessage = `Search completed.`;
         responseData = searchResult;
         break;
